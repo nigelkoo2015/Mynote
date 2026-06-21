@@ -59,6 +59,24 @@
   .note p  { margin: 0 0 8px; white-space: pre-wrap; color: #334155; }
   .note small { color: #64748b; }
   .hidden { display: none; }
+
+  /* ===== Cloak overlay ===== */
+  .cloak {
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    padding: 30px 20px;
+    text-align: center;
+    background: repeating-linear-gradient(
+      45deg, #f1f5f9, #f1f5f9 10px, #e2e8f0 10px, #e2e8f0 20px
+    );
+  }
+  .cloak .lock-icon { font-size: 42px; margin-bottom: 8px; }
+  .cloak h3 { margin: 6px 0 4px; color: #1e293b; }
+  .cloak p  { margin: 0 0 14px; color: #475569; font-size: 14px; }
+  .cloak input {
+    max-width: 280px; margin: 0 auto 10px; display: block;
+  }
+  .cloak .msg { margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -126,7 +144,26 @@
 
     <hr style="margin:24px 0" />
     <h2>Your notes</h2>
-    <div id="notesList"><em>Loading…</em></div>
+
+    <!-- Cloak (shown by default; hides the notes until unlocked) -->
+    <div id="notesCloak" class="cloak">
+      <div class="lock-icon">🔒</div>
+      <h3>Notes are locked</h3>
+      <p>Enter your security key to view your notes.</p>
+      <input id="cloakKey" type="password" placeholder="Security key"
+             autocomplete="current-password"
+             onkeydown="if(event.key==='Enter') unlockNotes()" />
+      <button class="primary" onclick="unlockNotes()" style="margin-top:4px">Unlock</button>
+      <div id="cloakMsg" class="msg"></div>
+    </div>
+
+    <!-- Notes list (hidden until unlocked) -->
+    <div id="notesArea" class="hidden">
+      <div style="margin-bottom:10px; text-align:right">
+        <button class="ghost" onclick="cloakNotes()">🔒 Lock notes</button>
+      </div>
+      <div id="notesList"><em>Loading…</em></div>
+    </div>
   </section>
 
 </main>
@@ -268,6 +305,7 @@ async function login() {
 
 function logout() {
   localStorage.removeItem("notepad_user");
+  cloakNotes(); // ensure notes are cloaked again before hiding the app
   $("userBar").classList.add("hidden");
   $("appCard").classList.add("hidden");
   showLogin();
@@ -282,8 +320,52 @@ function enterApp(u) {
   $("userBar").classList.remove("hidden");
   $("whoami").textContent = u;
   clearEditor();
+  cloakNotes(); // always start cloaked on entering the app
+}
+
+// ---------- cloak / unlock notes ----------
+function cloakNotes() {
+  $("notesCloak").classList.remove("hidden");
+  $("notesArea").classList.add("hidden");
+  $("notesList").innerHTML = "<em>Loading…</em>"; // clear stale notes from DOM
+  $("cloakKey").value = "";
+  msg($("cloakMsg"), "", "");
+}
+
+async function unlockNotes() {
+  const u = localStorage.getItem("notepad_user");
+  const k = $("cloakKey").value;
+  if (!u)  return; // not logged in
+  if (!k)  return msg($("cloakMsg"), "Please enter your security key.", "error");
+
+  // Re-verify the key against the database (don't trust anything client-side)
+  const { data, error } = await sb.from("users")
+        .select("security_key, approved")
+        .eq("user_id", u).maybeSingle();
+  if (error)                    return msg($("cloakMsg"), "Error: " + error.message, "error");
+  if (!data || !data.approved)  return msg($("cloakMsg"), "Account not available.", "error");
+  if (data.security_key !== k)  return msg($("cloakMsg"), "Wrong security key.", "error");
+
+  $("notesCloak").classList.add("hidden");
+  $("notesArea").classList.remove("hidden");
+  $("cloakKey").value = "";
+  msg($("cloakMsg"), "", "");
   loadNotes();
 }
+
+// Re-cloak when the tab is hidden (minimize, switch tab, lock screen)
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden"
+      && !$("appCard").classList.contains("hidden")) {
+    cloakNotes();
+  }
+});
+// Re-cloak when window loses focus (extra coverage for some browsers)
+window.addEventListener("blur", () => {
+  if (!$("appCard").classList.contains("hidden")) cloakNotes();
+});
+// Re-cloak on tab/window close (best-effort; covers reload too)
+window.addEventListener("beforeunload", () => { cloakNotes(); });
 
 // ---------- notes CRUD ----------
 function clearEditor() {
