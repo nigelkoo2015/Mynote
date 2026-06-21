@@ -4,6 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>My Notepad</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#2563eb" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
 <style>
   * { box-sizing: border-box; }
   body {
@@ -102,6 +106,18 @@
     <div id="loginMsg" class="msg"></div>
     <div class="switch">
       No account yet? <a href="#" id="goSignup">Create one</a>
+    </div>
+
+    <!-- Install on Android (PWA) -->
+    <hr style="margin:20px 0; border:0; border-top:1px solid #e2e8f0" />
+    <div style="text-align:center">
+      <button class="ghost" id="installBtn" onclick="installApp()"
+              style="font-size:14px; padding:8px 14px">
+        📲 Install on Android
+      </button>
+      <div id="installMsg" class="msg" style="margin-top:8px; font-size:13px; color:#64748b">
+        Install this notepad as an app on your phone.
+      </div>
     </div>
   </section>
 
@@ -449,6 +465,71 @@ function escapeHtml(s) {
   const u = localStorage.getItem("notepad_user");
   if (u) enterApp(u);
 })();
+
+// ---------- PWA: service worker + install button ----------
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(err =>
+      console.warn("SW registration failed:", err));
+  });
+}
+
+let deferredInstallPrompt = null;
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  // Chrome on Android fires this when the app is installable.
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById("installBtn");
+  const msg = document.getElementById("installMsg");
+  if (btn) btn.style.display = "inline-block";
+  if (msg) msg.textContent = "Tap to install this notepad on your phone.";
+});
+
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  const btn = document.getElementById("installBtn");
+  const msg = document.getElementById("installMsg");
+  if (btn) btn.style.display = "none";
+  if (msg) msg.textContent = "✅ Installed. Open it from your home screen.";
+});
+
+async function installApp() {
+  const msg = document.getElementById("installMsg");
+
+  // Already installed / running as PWA
+  if (window.matchMedia("(display-mode: standalone)").matches
+      || window.navigator.standalone === true) {
+    msg.textContent = "✅ Already installed — you're using the app now.";
+    return;
+  }
+
+  // Chrome / Edge / Samsung Internet on Android — native install prompt
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    const choice = await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    if (choice.outcome === "accepted") {
+      msg.textContent = "✅ Installing… find the icon on your home screen.";
+    } else {
+      msg.textContent = "Install cancelled. You can try again anytime.";
+    }
+    return;
+  }
+
+  // Fallback — iOS Safari and any browser that didn't fire the event
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua)) {
+    msg.innerHTML = "On iPhone: tap the <strong>Share</strong> button " +
+      "in Safari, then <strong>Add to Home Screen</strong>.";
+  } else if (/Android/.test(ua)) {
+    msg.innerHTML = "On Android: open your browser <strong>menu (⋮)</strong> " +
+      "and tap <strong>Install app</strong> or <strong>Add to Home screen</strong>.";
+  } else {
+    msg.innerHTML = "Open this page in Chrome on your phone, then use the " +
+      "browser menu → <strong>Install app</strong> / <strong>Add to Home screen</strong>.";
+  }
+}
 </script>
 </body>
 </html>
