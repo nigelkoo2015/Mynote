@@ -11,14 +11,14 @@ drop table if exists public.notes;
 drop table if exists public.users;
 
 -- 1) USERS table -------------------------------------------------------
--- Stores sign-up requests. New rows default to approved = false.
--- You (the admin) flip approved to true in the Table Editor to let
--- a user log in.
 create table public.users (
     id            uuid primary key default gen_random_uuid(),
-    user_id       text unique not null,            -- the login name chosen by the user
-    security_key  text not null,                   -- stored as plain text (no hashing)
-    approved      boolean not null default false,  -- you set this to true manually
+    user_id       text unique not null,            -- login name chosen by the user
+    security_key  text not null,                   -- stored as plain text
+    full_name     text not null,
+    country       text not null,
+    email         text not null,
+    approved      boolean not null default false,  -- admin flips this to true
     created_at    timestamptz not null default now()
 );
 
@@ -35,12 +35,5 @@ create table public.notes (
 create index notes_user_id_idx on public.notes(user_id);
 
 -- 3) Row Level Security -----------------------------------------------
--- This beginner project uses the public "anon" API key from the
--- browser and a custom (non-Supabase-Auth) login flow. To keep things
--- simple we DISABLE row level security on these two tables.
---
--- WARNING: with RLS off and security_key stored as plain text, anyone
--- who knows your Supabase URL + anon key can read the table. That is
--- OK for learning, but do NOT store anything sensitive here.
 alter table public.users disable row level security;
 alter table public.notes disable row level security;
