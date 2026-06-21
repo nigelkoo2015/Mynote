@@ -26,9 +26,10 @@
   }
   h2 { margin-top: 0; }
   label { display: block; margin: 10px 0 4px; font-size: 14px; font-weight: 600; }
-  input, textarea {
+  input, textarea, select {
     width: 100%; padding: 10px; border: 1px solid #cbd5e1;
     border-radius: 6px; font-size: 14px; font-family: inherit;
+    background: #fff;
   }
   textarea { min-height: 140px; resize: vertical; }
   button.primary {
@@ -93,6 +94,14 @@
     <input id="signupUser" autocomplete="username" />
     <label>Choose a Security key</label>
     <input id="signupPass" type="password" autocomplete="new-password" />
+    <label>Full name</label>
+    <input id="signupName" autocomplete="name" />
+    <label>Country</label>
+    <select id="signupCountry">
+      <option value="">-- Select your country --</option>
+    </select>
+    <label>Email</label>
+    <input id="signupEmail" type="email" autocomplete="email" />
     <button class="primary" onclick="signup()">Request account</button>
     <div id="signupMsg" class="msg"></div>
     <div class="switch">
@@ -140,9 +149,49 @@ function showSignup() {
   document.getElementById("loginCard").classList.add("hidden");
   document.getElementById("loginMsg").textContent  = "";
   document.getElementById("signupMsg").textContent = "";
-  document.getElementById("signupUser").value = "";
-  document.getElementById("signupPass").value = "";
+  document.getElementById("signupUser").value    = "";
+  document.getElementById("signupPass").value    = "";
+  document.getElementById("signupName").value    = "";
+  document.getElementById("signupCountry").value = "";
+  document.getElementById("signupEmail").value   = "";
 }
+
+// ---------- populate the country dropdown ----------
+const COUNTRIES = [
+  "Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda","Argentina",
+  "Armenia","Australia","Austria","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados",
+  "Belarus","Belgium","Belize","Benin","Bhutan","Bolivia","Bosnia and Herzegovina","Botswana",
+  "Brazil","Brunei","Bulgaria","Burkina Faso","Burundi","Cabo Verde","Cambodia","Cameroon",
+  "Canada","Central African Republic","Chad","Chile","China","Colombia","Comoros","Congo",
+  "Costa Rica","Croatia","Cuba","Cyprus","Czech Republic","Denmark","Djibouti","Dominica",
+  "Dominican Republic","Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Estonia",
+  "Eswatini","Ethiopia","Fiji","Finland","France","Gabon","Gambia","Georgia","Germany","Ghana",
+  "Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti","Honduras","Hungary",
+  "Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Ivory Coast","Jamaica",
+  "Japan","Jordan","Kazakhstan","Kenya","Kiribati","Kuwait","Kyrgyzstan","Laos","Latvia",
+  "Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania","Luxembourg","Madagascar",
+  "Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands","Mauritania","Mauritius",
+  "Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco","Mozambique",
+  "Myanmar","Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria",
+  "North Korea","North Macedonia","Norway","Oman","Pakistan","Palau","Palestine","Panama",
+  "Papua New Guinea","Paraguay","Peru","Philippines","Poland","Portugal","Qatar","Romania",
+  "Russia","Rwanda","Saint Kitts and Nevis","Saint Lucia","Saint Vincent and the Grenadines",
+  "Samoa","San Marino","Sao Tome and Principe","Saudi Arabia","Senegal","Serbia","Seychelles",
+  "Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia","South Africa",
+  "South Korea","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Switzerland",
+  "Syria","Taiwan","Tajikistan","Tanzania","Thailand","Timor-Leste","Togo","Tonga",
+  "Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu","Uganda","Ukraine",
+  "United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan","Vanuatu",
+  "Vatican City","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"
+];
+(function fillCountries(){
+  const sel = document.getElementById("signupCountry");
+  COUNTRIES.forEach(c => {
+    const o = document.createElement("option");
+    o.value = c; o.textContent = c;
+    sel.appendChild(o);
+  });
+})();
 
 document.getElementById("goSignup").addEventListener("click", function(e){
   e.preventDefault(); showSignup();
@@ -167,10 +216,24 @@ function msg(el, text, kind) {
 async function signup() {
   const u = $("signupUser").value.trim();
   const k = $("signupPass").value;
-  if (!u || !k) return msg($("signupMsg"), "User ID and security key are required.", "error");
-  if (k.length < 4) return msg($("signupMsg"), "Security key should be at least 4 characters.", "error");
+  const name    = $("signupName").value.trim();
+  const country = $("signupCountry").value;
+  const email   = $("signupEmail").value.trim();
 
-  const { error } = await sb.from("users").insert({ user_id: u, security_key: k });
+  if (!u || !k || !name || !country || !email)
+    return msg($("signupMsg"), "All fields are required.", "error");
+  if (k.length < 4)
+    return msg($("signupMsg"), "Security key should be at least 4 characters.", "error");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return msg($("signupMsg"), "Please enter a valid email address.", "error");
+
+  const { error } = await sb.from("users").insert({
+    user_id:      u,
+    security_key: k,
+    full_name:    name,
+    country:      country,
+    email:        email
+  });
   if (error) {
     if (error.code === "23505") return msg($("signupMsg"), "That User ID is already taken.", "error");
     return msg($("signupMsg"), "Error: " + error.message, "error");
@@ -179,6 +242,8 @@ async function signup() {
     "✅ Account request submitted. Please wait for the administrator to approve it.",
     "ok");
   $("signupUser").value = ""; $("signupPass").value = "";
+  $("signupName").value = ""; $("signupCountry").value = "";
+  $("signupEmail").value = "";
 }
 
 // ---------- log in ----------
